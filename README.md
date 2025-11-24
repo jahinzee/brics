@@ -137,7 +137,7 @@ brics: cannot parse relex file half.brelex:
 ```
 
 > [!WARNING]
-> Ssubstitutions that use only whitespace characters (such as a series of spaces) are not supported,
+> Substitutions that use only whitespace characters (such as a series of spaces) are not supported,
 > they will probably not work or produce garbage results.
 
 ### Disassembly
