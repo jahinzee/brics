@@ -27,22 +27,25 @@ def _instr_to_c_statement(instr: Instruction) -> str:
     """
     match instr:
         case Instruction.Next:
+            # Modular expression adapted from: https://stackoverflow.com/a/1082938
+            # (ShreevatsaR, CC BY-SA 2.5)
+            #
             # NOTE: using `+1`/`-1` instead of pre-increment to avoid compiler warnings,
             #       specifically, clang's `-Wunsequenced`.
             #
-            return "ptr = MOD(ptr + 1, MEMORY_LENGTH);"
+            return "ptr=((ptr+1)%30000+30000)%30000;"
         case Instruction.Previous:
-            return "ptr = MOD(ptr - 1, MEMORY_LENGTH);"
+            return "ptr=((ptr-1)%30000+30000)%30000;"
         case Instruction.Add:
             return "mem[ptr]++;"
         case Instruction.Subtract:
             return "mem[ptr]--;"
         case Instruction.Input:
-            return "mem[ptr] = getchar();"
+            return "mem[ptr]=getchar();"
         case Instruction.Output:
             return "putchar(mem[ptr]);"
         case Instruction.BeginLoop:
-            return "while (mem[ptr]) {"
+            return "while(mem[ptr]){"
         case Instruction.EndLoop:
             return "};"
 
@@ -58,10 +61,7 @@ def compile_to_c(program: Program):
     """
     buf = sys.stdout
 
-    # fmt: off
-
-    # Writing: Comment header:
-    #   * program source and optimisation context
+    # Writing: comment header - program source and optimisation context
     #
     buf.write((
         "/* \n"
@@ -69,56 +69,22 @@ def compile_to_c(program: Program):
        f" *   Source file: {program.source_file}\n"
        f" *   Optimised:   {program.optimised}\n"
        f" *   Relex:       {program.relex.name}\n"
-        " */\n"
-        "\n"))
+        " */\n"))  # fmt: skip
 
-    # Writing: Code header:
-    #   * includes and macros for memory length and modulo operation 
-    #   * main function init
-    #   * memory and pointer init
+    # Writing: code preamble
     #
     buf.write((
         "#include <stdio.h>\n"
-        "#define MEMORY_LENGTH 30000\n"
-        "\n"
-        # region cc-by-sa-2.5
-        #   This section licensed under CC BY-SA 2.5.
-        #   Based on code by ShreevatsaR.
-        "/* MOD macro adapted from: https://stackoverflow.com/a/1082938 (ShreevatsaR, CC BY-SA 2.5) */\n"
-        "#define MOD(a, b) (a % b + b) % b\n"
-        # endregion
-        "\n"
-        "int main(void) {\n"
-        "\n"
-        "    /* (program init) */\n"
-        "    char mem[MEMORY_LENGTH];\n"
-        "    int ptr = 0;\n"
-        "    \n"))
-    # fmt: on
-
-    indent_level = 0
+        "int main(void){"
+            "char mem[30000];"
+            "int ptr=0;"))  # fmt: skip
 
     for instr in program.instructions:
-        if instr is None:
-            continue
-
-        indent_level -= 1 if instr == Instruction.EndLoop else 0
-
-        # Writing: Current instruction:
-        #   * context comment
-        #   * adjust indentation when needed
+        # Writing: current instruction
         #
-        indent = "    " * (indent_level + 1)
-        # fmt: off
-        buf.write((
-           f"{indent}/* {f'(instr {instr.name})'} */\n"
-           f"{indent}{_instr_to_c_statement(instr)}\n"
-            "\n"))
-        # fmt: on
+        buf.write(_instr_to_c_statement(instr))
 
-        indent_level += 1 if instr == Instruction.BeginLoop else 0
-
-    # Writing: Code footer:
+    # Writing: code epilogue
     #   * end main function
     #
-    buf.write("}")
+    buf.write("}\n")

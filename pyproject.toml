@@ -1,6 +1,6 @@
 [project]
 name = "brics"
-version = "0.1.0"
+version = "0.1.1"
 description = "A Brainfuck interpreter, disassembler and transpiler."
 license = { file = "LICENSE" }
 readme = "README.md"

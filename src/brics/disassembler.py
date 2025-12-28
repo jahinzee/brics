@@ -13,7 +13,7 @@ from brics.program import Program
 from brics.instructions import Instruction
 
 from math import log10
-from typing import Iterable
+from typing import Iterable, Iterator
 
 import sys
 import json
@@ -26,6 +26,15 @@ def _get_max_width(source: Iterable[int]) -> int:
 
 
 # endregion
+
+
+def _flatten_loop_boundaries(loop_boundaries: dict[int, int]) -> Iterator[tuple[int, int]]:
+    seen = set[int]()
+    for li, ri in loop_boundaries.items():
+        if li in seen:
+            continue
+        yield (ri, li) if ri < li else (li, ri)
+        seen.add(ri)
 
 
 def _disassemble_json(program: Program):
@@ -41,7 +50,10 @@ def _disassemble_json(program: Program):
             for (idx, instr) in enumerate(program.instructions)
             if instr is not None
         ],
-        "loop_indices": [{"left": li, "right": ri} for li, ri in sorted(program.loop_boundaries)],
+        "loop_indices": [
+            {"left": li, "right": ri}
+            for li, ri in sorted(_flatten_loop_boundaries(program.loop_boundaries))
+        ],
     }
     json.dump(obj, sys.stdout, indent=2)
 
@@ -102,8 +114,9 @@ def _disassemble_readable(program: Program):
     if len(program.loop_boundaries) == 0:
         buf.write("    (none)\n")
     else:
-        max_li, max_ri = tuple(_get_max_width(i) for i in zip(*program.loop_boundaries))
-        for li, ri in sorted(program.loop_boundaries):
+        flattened_loop_boundaries = tuple(_flatten_loop_boundaries(program.loop_boundaries))
+        max_li, max_ri = tuple(_get_max_width(i) for i in zip(*flattened_loop_boundaries))
+        for li, ri in sorted(flattened_loop_boundaries):
             buf.write(f"    {li:>{max_li}} ⋄ {ri:<{max_ri}}\n")
 
 

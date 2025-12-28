@@ -6,10 +6,11 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #
+from __future__ import annotations
 
 __package__ = "brics"
 
-from typing import final, Self
+from typing import final
 
 import enum
 
@@ -28,7 +29,7 @@ class Instruction(enum.Enum):
     Output = enum.auto()
 
     @classmethod
-    def from_char(cls, char: str) -> Self | None:
+    def from_char(cls, char: str) -> Instruction | None:
         """
         Returns the corresponding Brainfuck instruction that `char` represents.
         Return None if `len(char) > 1`, or `char` is not a valid Brainfuck instruction.
@@ -76,6 +77,6 @@ class Instruction(enum.Enum):
                 return "."
 
     @classmethod
-    def all_instructions(cls) -> set[Self]:
+    def all_instructions(cls) -> set[Instruction]:
         """Return a set of all instructions."""
         return {i for i in cls}

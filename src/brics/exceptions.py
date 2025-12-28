@@ -12,11 +12,6 @@ __package__ = "brics"
 from typing import Optional
 
 
-class UnreachableStatement(Exception):
-    def __init__(self):
-        super().__init__("unreachable statement")
-
-
 class BrainfuckException(Exception):
     pass
 
@@ -36,15 +31,6 @@ class RelexParsingError(BrainfuckException):
     def __init__(self, line: Optional[int], message: str):
         super().__init__(message)
         self.line = line
-        self.message = message
-
-
-class BfRuntimeError(BrainfuckException):
-    __slots__ = ("char", "message")
-
-    def __init__(self, char: int, message: str):
-        super().__init__(message)
-        self.char = char
         self.message = message
 
 

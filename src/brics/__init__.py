@@ -17,7 +17,7 @@ from brics.program import Program
 from brics.relex import Relex
 
 from argparse import ArgumentParser, Namespace, FileType
-from typing import NoReturn
+from typing import NoReturn, Optional
 
 import sys
 
@@ -70,8 +70,10 @@ def _get_args() -> Namespace:
     return p.parse_args()
 
 
-def _fatal_error(message: str, err: Exception) -> NoReturn:
-    print(f"{__package__}: {message}:\n  {err}", file=sys.stderr)
+def _fatal_error(message: str, err: Optional[Exception] = None) -> NoReturn:
+    print(f"{__package__}: {message}", file=sys.stderr)
+    if err is not None:
+        print(f"  {err}", file=sys.stderr)
     exit(1)
 
 
@@ -89,7 +91,7 @@ def main():
             case "compile":
                 compile_to_c(program)
             case _:
-                raise exc.UnreachableStatement()
+                assert False, "unreachable"
 
     except (KeyboardInterrupt, exc.BfRuntimeGracefulExit):
         pass
@@ -101,8 +103,8 @@ def main():
         _at_line = f" at line {err.line}" if err.line is not None else ""
         _fatal_error(f"cannot parse relex file {args.relex.name}{_at_line}", err)
 
-    except exc.BfRuntimeError as err:
-        _fatal_error(f"runtime error at instruction {err.char}", err)
+    except BrokenPipeError:
+        _fatal_error("broken pipe error")
 
 
 if __name__ == "__main__":

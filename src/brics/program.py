@@ -9,15 +9,13 @@
 
 __package__ = "brics"
 
-from brics.exceptions import ParsingError, BfRuntimeError, UnreachableStatement
+from brics.exceptions import ParsingError
 from brics.instructions import Instruction
 from brics.relex import Relex
 
 from typing import final, Optional
 from pathlib import Path
 from io import TextIOWrapper
-
-import itertools
 
 
 @final
@@ -27,8 +25,8 @@ class Program:
     __slots__ = "instructions", "loop_boundaries", "relex", "optimised", "source_file"
 
     source_file: Path
-    instructions: tuple[Optional[Instruction], ...]
-    loop_boundaries: set[tuple[int, int]]
+    instructions: tuple[Instruction, ...]
+    loop_boundaries: dict[int, int]
     relex: Relex
     optimised: bool
 
@@ -49,17 +47,14 @@ class Program:
         return True
 
     @staticmethod
-    def _make_or_get_first_bounds(
-        instrs: tuple[Optional[Instruction], ...], *, _get_first: bool
-    ) -> set[tuple[int, int]] | (tuple[int, int] | None):
+    def _make_bounds(instrs: tuple[Optional[Instruction], ...]) -> dict[int, int]:
         """
-        Common implementation for `_make_bounds` and `_get_first_bound`.
+        Returns a *set* of matching LoopStart and LoopEnd indices from a given sequence of
+        instructions
 
-        INVARIANT: `_get_first` -> returns `tuple[int, int]`
-                          else  -> returns `set[tuple[int, int]] | None`
+        Raises `ParsingError` if there are unbalanced loops.
         """
-
-        output = set()
+        output = {}
         stack = []
 
         for idx, instr in enumerate(instrs):
@@ -72,31 +67,16 @@ class Program:
                     stack.append(idx)
                 case Instruction.EndLoop:
                     try:
-                        output.add((stack.pop(), idx))
+                        right_idx = stack.pop()
                     except IndexError:
                         raise ParsingError(idx, "Unmatched ] instruction")
-                    if _get_first and len(stack) == 0:
-                        return min(output, key=lambda t: t[0], default=None)
+                    output[idx] = right_idx
+                    output[right_idx] = idx
 
         if len(stack) != 0:
             idx = stack.pop()
             raise ParsingError(idx, "Unmatched [ instruction")
-        if _get_first:
-            return None
         return output
-
-    @staticmethod
-    def _make_bounds(instrs: tuple[Optional[Instruction], ...]) -> set[tuple[int, int]]:
-        """
-        Returns a *set* of matching LoopStart and LoopEnd indices from a given sequence of
-        instructions
-
-        Raises `ParsingError` if there are unbalanced loops.
-        """
-        result = Program._make_or_get_first_bounds(instrs, _get_first=False)
-        if isinstance(result, set):
-            return result
-        raise UnreachableStatement()
 
     @staticmethod
     def _get_first_bounds(
@@ -109,16 +89,33 @@ class Program:
         The first pair based on the position of LoopStart:
 
             ···[··[···]····]
-                ↑___________↑
+               ↑___________↑
 
         Returns `None` if there are no loop bounds.
 
         Raises `ParsingError` if there are unbalanced loops.
         """
-        result = Program._make_or_get_first_bounds(instrs, _get_first=True)
-        if isinstance(result, tuple) or result is None:
-            return result
-        raise UnreachableStatement()
+        output = set()
+        stack = []
+
+        for idx, instr in enumerate(instrs):
+            if idx == 0 and instr != Instruction.BeginLoop:
+                return None
+            match instr:
+                case Instruction.BeginLoop:
+                    stack.append(idx)
+                case Instruction.EndLoop:
+                    try:
+                        output.add((stack.pop(), idx))
+                    except IndexError:
+                        raise ParsingError(idx, "Unmatched ] instruction")
+                    if len(stack) == 0:
+                        return (0, idx)
+
+        if len(stack) != 0:
+            idx = stack.pop()
+            raise ParsingError(idx, "Unmatched [ instruction")
+        return None
 
     # endregion
 
@@ -132,25 +129,10 @@ class Program:
         Raises `ParsingError` if there are errors in the source.
         """
 
-        self.instructions = tuple(itertools.chain(relex.text_to_instrs(text), (None,)))
+        self.instructions = tuple(relex.text_to_instrs(text))
         if optimise:
             self._trim_headers()
         self.optimised = optimise
         self.loop_boundaries = self._make_bounds(self.instructions)
         self.relex = relex
         self.source_file = Path(text.name)
-
-    def get_other_bound(self, idx: int) -> int:
-        """
-        Given an index corresponding to a BeginLoop instruction, return the matching EndLoop
-        instruction index, and vice versa.
-
-        Raises `BfRuntimeError` if the corresponding index cannot be found, either because the given
-        index does not correspond to a loop instruction, or the loop is unbalanced.
-        """
-        for left, right in self.loop_boundaries:
-            if left == idx:
-                return right
-            if right == idx:
-                return left
-        raise BfRuntimeError(idx, "Bound lookup failed")
